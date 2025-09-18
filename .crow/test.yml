@@ -1,0 +1,25 @@
+---
+when:
+  - event: [pull_request, tag]
+  - event: [push, manual]
+    branch:
+      - ${CI_REPO_DEFAULT_BRANCH}
+
+variables:
+  - &brew_image reg.devxy.io/docker.io/homebrew/brew:4.4.8
+  - &brew_base
+    depends_on: []
+    environment:
+      HOMEBREW_COLOR: "true"
+      HOMEBREW_DEVELOPER: "true"
+      HOMEBREW_NO_AUTO_UPDATE: "True"
+      HOMEBREW_NO_ENV_HINTS: "True"
+
+steps:
+  - name: test-ricochet
+    image: *brew_image
+    <<: *brew_base
+    commands:
+      - brew style ./Formula/ricochet.rb
+      - brew install ./Formula/ricochet.rb
+      - brew test ./Formula/ricochet.rb

@@ -1,0 +1,21 @@
+{
+  "$schema": "https://docs.renovatebot.com/renovate-schema.json",
+  "extends": ["github>thegeeklab/renovate-presets"],
+  "packageRules": [
+    {
+      "description": "Automerge CI deps",
+      "groupName": "ci deps non-major",
+      "matchManagers": ["woodpecker"],
+      "matchPackagePatterns": ["homebrew/brew"],
+      "matchUpdateTypes": ["minor", "patch"],
+      "automerge": true
+    },
+    {
+      "description": "Automerge tap updates",
+      "groupName": "homebrew updates",
+      "matchManagers": ["homebrew"],
+      "matchUpdateTypes": ["minor", "patch"],
+      "automerge": true
+    }
+  ]
+}
