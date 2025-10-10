@@ -5,6 +5,9 @@ when:
     branch:
       - ${CI_REPO_DEFAULT_BRANCH}
 
+labels:
+  type: static
+
 variables:
   - &brew_image reg.devxy.io/docker.io/homebrew/brew:4.4.8
   - &brew_base

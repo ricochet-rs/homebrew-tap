@@ -5,6 +5,9 @@ when:
     branch:
       - ${CI_REPO_DEFAULT_BRANCH}
 
+labels:
+  type: static
+
 steps:
   - name: lint-markdown
     depends_on: []
