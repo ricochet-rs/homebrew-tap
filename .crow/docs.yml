@@ -10,9 +10,9 @@ steps:
     depends_on: []
     image: reg.devxy.io/docker.io/davidanson/markdownlint-cli2:v0.18.1
     commands:
-      - 'markdownlint-cli2 *.{md,markdown}'
+      - "markdownlint-cli2 *.{md,markdown}"
     when:
-      path: '*.{md,markdown}'
+      path: "*.{md,markdown}"
 
   - name: editorconfig
     image: reg.devxy.io/docker.io/mstruebing/editorconfig-checker:v3.4.0
