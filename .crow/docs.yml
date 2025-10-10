@@ -11,22 +11,22 @@ labels:
 steps:
   - name: lint-markdown
     depends_on: []
-    image: reg.devxy.io/docker.io/davidanson/markdownlint-cli2:v0.18.1
+    image: reg.ricochet.rs/docker.io/davidanson/markdownlint-cli2:v0.18.1
     commands:
       - "markdownlint-cli2 *.{md,markdown}"
     when:
       path: "*.{md,markdown}"
 
   - name: editorconfig
-    image: reg.devxy.io/docker.io/mstruebing/editorconfig-checker:v3.4.0
+    image: reg.ricochet.rs/docker.io/mstruebing/editorconfig-checker:v3.4.0
     depends_on: []
 
   - name: prettier
-    image: reg.devxy.io/docker.io/woodpeckerci/plugin-prettier:1.3.1
+    image: reg.ricochet.rs/docker.io/woodpeckerci/plugin-prettier:1.3.1
     depends_on: []
 
   - name: link-validation
-    image: reg.devxy.io/docker.io/lycheeverse/lychee:v0.20.1
+    image: reg.ricochet.rs/docker.io/lycheeverse/lychee:v0.20.1
     depends_on: []
     commands:
       - lychee --no-progress --format detailed README.md
