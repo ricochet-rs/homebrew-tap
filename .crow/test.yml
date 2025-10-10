@@ -9,7 +9,7 @@ labels:
   type: static
 
 variables:
-  - &brew_image reg.ricochet.rs/docker.io/homebrew/brew:4.4.8
+  - &brew_image reg.ricochet.rs/docker.io/homebrew/brew:4.6.16
   - &brew_base
     depends_on: []
     environment:
