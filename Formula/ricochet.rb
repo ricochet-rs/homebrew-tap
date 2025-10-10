@@ -12,6 +12,6 @@ class Ricochet < Formula
 
   test do
     assert_match "ricochet", shell_output("#{bin}/ricochet --help")
-    system "#{bin}/ricochet", "--version"
+    system bin/"ricochet", "--version"
   end
 end

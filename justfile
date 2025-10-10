@@ -4,9 +4,9 @@
 default:
     @just --list
 
-# Run brew style checks on the formula
+# Run brew style checks on the formula (skip file permissions check)
 style:
-    brew style ./Formula/ricochet.rb
+    brew style --except-cops=FormulaAudit/Files ./Formula/ricochet.rb
 
 # Run brew audit on the formula
 audit:

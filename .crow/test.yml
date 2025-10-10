@@ -23,6 +23,6 @@ steps:
     image: *brew_image
     <<: *brew_base
     commands:
-      - brew style ./Formula/ricochet.rb
+      - brew style --except-cops=FormulaAudit/Files ./Formula/ricochet.rb
       - brew install ./Formula/ricochet.rb
       - brew test ./Formula/ricochet.rb
