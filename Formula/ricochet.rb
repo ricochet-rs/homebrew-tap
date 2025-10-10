@@ -1,5 +1,5 @@
 class Ricochet < Formula
-  desc "ricochet - Put R & Julia in production"
+  desc "Put R & Julia in production"
   homepage "https://github.com/ricochet-rs/cli"
   license "GPL-3.0-or-later"
   head "https://github.com/ricochet-rs/cli.git", branch: "main"
