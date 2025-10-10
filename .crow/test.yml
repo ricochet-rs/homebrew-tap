@@ -23,6 +23,7 @@ steps:
     image: *brew_image
     <<: *brew_base
     commands:
+      - chmod o-w ./Formula/ricochet.rb
       - brew style ./Formula/ricochet.rb
       - brew install ./Formula/ricochet.rb
       - brew test ./Formula/ricochet.rb
