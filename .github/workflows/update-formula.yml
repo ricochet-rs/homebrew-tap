@@ -1,0 +1,72 @@
+name: Update Formula on Upstream Release
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Version from ricochet-rs/cli (e.g., v0.2.0 or 0.2.0)'
+        required: true
+        type: string
+
+permissions:
+  contents: write
+
+jobs:
+  update-formula:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout tap
+        uses: actions/checkout@v4
+
+      - name: Set up Homebrew
+        uses: Homebrew/actions/setup-homebrew@master
+
+      - name: Configure git
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+      - name: Parse version
+        id: version
+        run: |
+          VERSION="${{ inputs.version }}"
+          VERSION="${VERSION#v}"
+          echo "version=${VERSION}" >> "$GITHUB_OUTPUT"
+          echo "Updating to version: ${VERSION}"
+
+      - name: Update formula with brew bump-formula-pr
+        run: |
+          VERSION="${{ steps.version.outputs.version }}"
+          URL="https://github.com/ricochet-rs/cli/archive/refs/tags/v${VERSION}.tar.gz"
+          
+          echo "Updating formula to version ${VERSION}"
+          echo "Source URL: ${URL}"
+          
+          brew bump-formula-pr \
+            --url="${URL}" \
+            --write-only \
+            --no-browse \
+            ricochet/tap/ricochet
+
+      - name: Commit and push formula update
+        run: |
+          VERSION="${{ steps.version.outputs.version }}"
+          
+          if git diff --quiet Formula/ricochet.rb; then
+            echo "No changes to formula"
+          else
+            git add Formula/ricochet.rb
+            git commit -m "ricochet ${VERSION}"
+            git push
+            echo "Formula updated and pushed"
+          fi
+
+      - name: Create tag
+        run: |
+          VERSION="${{ steps.version.outputs.version }}"
+          
+          git tag -a "v${VERSION}" -m "Release v${VERSION}"
+          git push origin "v${VERSION}"
+          
+          echo "Tag v${VERSION} created"
+          echo "Bottle build workflow will trigger automatically"
