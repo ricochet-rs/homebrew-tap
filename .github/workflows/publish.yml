@@ -4,7 +4,11 @@ on:
   push:
     branches:
       - main
+    paths:
+      - 'Formula/ricochet.rb'
   pull_request:
+    paths:
+      - 'Formula/ricochet.rb'
   workflow_dispatch:
 
 permissions:
@@ -46,10 +50,15 @@ jobs:
 
       - name: Build bottle
         run: |
+          # Fix any broken Python links that might interfere
+          brew link --overwrite python@3.13 2>/dev/null || true
+          
           # Uninstall if already present to avoid rebuild numbers
           brew uninstall --ignore-dependencies ricochet/tap/ricochet 2>/dev/null || true
+          
           # Install from source with bottle build flags
           brew install --build-bottle ricochet/tap/ricochet
+          
           # Create bottle
           brew bottle --no-rebuild --json --root-url=https://github.com/${{ github.repository }}/releases/download/v${{ steps.version.outputs.version }} ricochet/tap/ricochet
 
