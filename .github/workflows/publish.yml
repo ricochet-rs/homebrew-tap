@@ -16,9 +16,9 @@ jobs:
     strategy:
       matrix:
         os:
-          - macos-15      # macOS Sequoia (Apple Silicon)
-          - macos-14      # macOS Sonoma (Apple Silicon)
-          - macos-13      # macOS Ventura (Intel)
+          - macos-15          # macOS Sequoia (Apple Silicon)
+          - macos-15-intel    # macOS Sequoia (Intel)
+          - macos-14          # macOS Sonoma (Apple Silicon)
     runs-on: ${{ matrix.os }}
     steps:
       - name: Set up Homebrew
