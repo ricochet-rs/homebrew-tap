@@ -80,6 +80,30 @@ jobs:
       - name: List downloaded files
         run: ls -la
 
+      - name: Rename bottles (remove double dash)
+        run: |
+          # Rename bottle tar.gz files
+          for file in ricochet--*.bottle.tar.gz; do
+            if [ -f "$file" ]; then
+              newname=$(echo "$file" | sed 's/ricochet--/ricochet-/')
+              mv "$file" "$newname"
+              echo "Renamed: $file -> $newname"
+            fi
+          done
+          
+          # Update JSON files to reference the new filenames
+          for jsonfile in ricochet--*.bottle.json; do
+            if [ -f "$jsonfile" ]; then
+              # Update the local_filename in JSON to use single dash
+              sed -i 's/"local_filename": "ricochet--/"local_filename": "ricochet-/g' "$jsonfile"
+              sed -i 's/"filename": "ricochet-/"filename": "ricochet-/g' "$jsonfile"
+              # Rename the JSON file itself
+              newjsonname=$(echo "$jsonfile" | sed 's/ricochet--/ricochet-/')
+              mv "$jsonfile" "$newjsonname"
+              echo "Renamed: $jsonfile -> $newjsonname"
+            fi
+          done
+
       - name: Extract version from formula
         id: version
         run: |
