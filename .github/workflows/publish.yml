@@ -17,8 +17,8 @@ jobs:
       matrix:
         os:
           - macos-15      # macOS Sequoia (Apple Silicon)
-          # - macos-14      # macOS Sonoma (Apple Silicon)
-          # - macos-13      # macOS Ventura (Intel)
+          - macos-14      # macOS Sonoma (Apple Silicon)
+          - macos-13      # macOS Ventura (Intel)
     runs-on: ${{ matrix.os }}
     steps:
       - name: Set up Homebrew
@@ -90,7 +90,7 @@ jobs:
               echo "Renamed: $file -> $newname"
             fi
           done
-          
+
           # Update JSON files to reference the new filenames
           for jsonfile in ricochet--*.bottle.json; do
             if [ -f "$jsonfile" ]; then
