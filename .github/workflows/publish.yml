@@ -1,0 +1,132 @@
+name: Build and Publish Bottles
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  build-bottle:
+    strategy:
+      matrix:
+        os:
+          - macos-15      # macOS Sequoia (Apple Silicon)
+          # - macos-14      # macOS Sonoma (Apple Silicon)
+          # - macos-13      # macOS Ventura (Intel)
+    runs-on: ${{ matrix.os }}
+    steps:
+      - name: Set up Homebrew
+        id: set-up-homebrew
+        uses: Homebrew/actions/setup-homebrew@main
+
+      - name: Cache Homebrew Bundler RubyGems
+        uses: actions/cache@v4
+        with:
+          path: ${{ steps.set-up-homebrew.outputs.gems-path }}
+          key: ${{ matrix.os }}-rubygems-${{ steps.set-up-homebrew.outputs.gems-hash }}
+          restore-keys: ${{ matrix.os }}-rubygems-
+
+      - name: Checkout tap
+        run: |
+          mkdir -p "$(brew --repo)/Library/Taps/ricochet"
+          ln -s "$GITHUB_WORKSPACE" "$(brew --repo)/Library/Taps/ricochet/homebrew-tap"
+
+      - name: Extract version from formula
+        id: version
+        run: |
+          VERSION=$(grep -m1 'url' Formula/ricochet.rb | sed 's/.*\/v\([0-9.]*[0-9]\).*/\1/' || echo "0.1.0")
+          echo "version=${VERSION}" >> "$GITHUB_OUTPUT"
+          echo "Detected version: ${VERSION}"
+
+      - name: Build bottle
+        run: |
+          # Uninstall if already present to avoid rebuild numbers
+          brew uninstall --ignore-dependencies ricochet/tap/ricochet 2>/dev/null || true
+          # Install from source with bottle build flags
+          brew install --build-bottle ricochet/tap/ricochet
+          # Create bottle
+          brew bottle --no-rebuild --json --root-url=https://github.com/${{ github.repository }}/releases/download/v${{ steps.version.outputs.version }} ricochet/tap/ricochet
+
+      - name: Upload bottles as artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: bottles-${{ matrix.os }}
+          path: |
+            *.bottle.*
+            *.json
+          if-no-files-found: ignore
+
+  upload-bottles:
+    needs: build-bottle
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Download all bottles
+        uses: actions/download-artifact@v4
+        with:
+          pattern: bottles-*
+          merge-multiple: true
+
+      - name: List downloaded files
+        run: ls -la
+
+      - name: Extract version from formula
+        id: version
+        run: |
+          VERSION=$(grep -m1 'url' Formula/ricochet.rb | sed 's/.*\/v\([0-9.]*[0-9]\).*/\1/' || echo "0.1.0")
+          echo "version=v${VERSION}" >> "$GITHUB_OUTPUT"
+          echo "Detected version: v${VERSION}"
+
+      - name: Create or update release
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          VERSION="${{ steps.version.outputs.version }}"
+
+          # Check if release exists
+          if gh release view "$VERSION" >/dev/null 2>&1; then
+            echo "Release $VERSION already exists, uploading bottles..."
+            gh release upload "$VERSION" ./*.bottle.* --clobber
+          else
+            echo "Creating new release $VERSION..."
+            gh release create "$VERSION" \
+              --title "Release $VERSION" \
+              --notes "Automated release for $VERSION" \
+              -- ./*.bottle.*
+          fi
+
+      - name: Generate bottle block from JSON
+        id: bottle_block
+        run: |
+          if [ -f *.bottle.json ]; then
+            echo "Found bottle JSON files"
+            # Merge all bottle JSONs and generate bottle block
+            brew bottle --merge --write ./*.bottle.json || true
+          else
+            echo "No bottle JSON files found"
+          fi
+
+      - name: Commit formula changes
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          # If there are formula changes, commit them
+          if ! git diff --quiet Formula/; then
+            git config user.name "github-actions[bot]"
+            git config user.email "github-actions[bot]@users.noreply.github.com"
+            git add Formula/
+            git commit -m "Add bottles for ${{ steps.version.outputs.version }}"
+            git push
+          else
+            echo "No formula changes to commit"
+          fi

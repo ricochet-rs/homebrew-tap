@@ -5,7 +5,7 @@
 Add the tap:
 
 ```shell
-brew tap ricochet-rs/tap
+brew tap ricochet-rs/homebrew-tap
 ```
 
 Install formula:
