@@ -78,7 +78,7 @@ jobs:
         run: |
           if ! git diff --quiet Formula/ricochet.rb; then
             git add Formula/ricochet.rb
-            git commit -m "Add bottles for v${{ steps.version.outputs.version }}"
+            git commit -m "[ci skip] Add bottles for v${{ steps.version.outputs.version }}"
 
             # Push using GitHub CLI which handles authentication
             gh auth setup-git
