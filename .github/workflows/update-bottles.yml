@@ -1,0 +1,91 @@
+name: Update Formula with Bottles
+
+on:
+  workflow_run:
+    workflows: ["Build and Publish Bottles"]
+    types:
+      - completed
+
+permissions:
+  contents: write
+
+jobs:
+  update-formula:
+    if: github.event.workflow_run.conclusion == 'success'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          ref: main
+          fetch-depth: 0
+
+      - name: Set up Homebrew
+        uses: Homebrew/actions/setup-homebrew@master
+
+      - name: Configure git
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+      - name: Extract version from tag
+        id: version
+        run: |
+          # Get the tag that triggered the original workflow
+          TAG_NAME="${{ github.event.workflow_run.head_branch }}"
+          VERSION="${TAG_NAME#v}"
+          echo "version=${VERSION}" >> "$GITHUB_OUTPUT"
+          echo "Version: ${VERSION}"
+
+      - name: Download bottle JSON files from release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          VERSION="v${{ steps.version.outputs.version }}"
+          echo "Downloading bottle JSON files from release ${VERSION}..."
+
+          gh release download "${VERSION}" -p "*.bottle.json" || {
+            echo "Failed to download bottle JSON files"
+            exit 1
+          }
+
+          echo "Downloaded files:"
+          ls -la *.bottle.json
+
+      - name: Setup tap for bottle merge
+        run: |
+          mkdir -p "$(brew --repo)/Library/Taps/ricochet-rs"
+          ln -sf "$GITHUB_WORKSPACE" "$(brew --repo)/Library/Taps/ricochet-rs/homebrew-tap"
+
+      - name: Merge bottles into formula
+        run: |
+          echo "Merging bottle metadata into formula..."
+
+          # Merge all bottle JSONs
+          brew bottle --merge --write --no-commit ricochet-*.bottle.json
+
+          echo "✅ Bottle block merged into formula"
+
+      - name: Verify formula changes
+        run: |
+          echo "Formula diff:"
+          git diff Formula/ricochet.rb || echo "No changes"
+
+      - name: Commit and push formula update
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          if ! git diff --quiet Formula/ricochet.rb; then
+            git add Formula/ricochet.rb
+            git commit -m "Add bottles for v${{ steps.version.outputs.version }}"
+
+            # Push using GitHub CLI which handles authentication
+            gh auth setup-git
+            git push origin main
+
+            echo "✅ Formula updated with bottle block"
+          else
+            echo "⚠️ No changes to formula"
+            exit 1
+          fi
