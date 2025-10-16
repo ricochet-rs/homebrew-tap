@@ -48,16 +48,19 @@ jobs:
           HOMEBREW_NO_AUTO_UPDATE: 1
           HOMEBREW_NO_INSTALL_UPGRADE: 1
         run: |
+          # Remove conflicting Python symlinks proactively
+          echo "Cleaning up any conflicting Python links..."
+          rm -f /usr/local/bin/idle3.13 \
+                /usr/local/bin/pip3.13 \
+                /usr/local/bin/pydoc3.13 \
+                /usr/local/bin/python3.13 \
+                /usr/local/bin/python3.13-config 2>/dev/null || true
+          
           # Uninstall if already present to avoid rebuild numbers
           brew uninstall --ignore-dependencies ricochet-rs/tap/ricochet 2>/dev/null || true
           
           # Install from source with bottle build flags
-          # Note: Python linking warnings are non-fatal and can be ignored
-          brew install --build-bottle ricochet-rs/tap/ricochet 2>&1 | tee install.log || {
-            echo "Install failed, attempting to fix Python links..."
-            brew link --overwrite --force python@3.13 2>/dev/null || true
-            brew install --build-bottle ricochet-rs/tap/ricochet
-          }
+          brew install --build-bottle ricochet-rs/tap/ricochet
           
           # Create bottle
           brew bottle --no-rebuild --json --root-url=https://github.com/${{ github.repository }}/releases/download/v${{ steps.version.outputs.version }} ricochet-rs/tap/ricochet

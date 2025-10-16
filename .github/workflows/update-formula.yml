@@ -46,7 +46,7 @@ jobs:
             --url="${URL}" \
             --write-only \
             --no-browse \
-            ricochet/tap/ricochet
+            ricochet-rs/tap/ricochet
 
       - name: Commit and push formula update
         run: |
