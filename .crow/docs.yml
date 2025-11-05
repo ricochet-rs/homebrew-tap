@@ -30,6 +30,3 @@ steps:
     depends_on: []
     commands:
       - lychee --no-progress --format detailed README.md
-
-depends_on:
-  - test
