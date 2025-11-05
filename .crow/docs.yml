@@ -26,7 +26,8 @@ steps:
     depends_on: []
 
   - name: link-validation
-    image: reg.ricochet.rs/docker.io/lycheeverse/lychee:v0.20.1
+    # FIXME: https://github.com/lycheeverse/lychee/issues/1833
+    image: reg.ricochet.rs/docker.io/lycheeverse/lychee:latest
     depends_on: []
     commands:
       - lychee --no-progress --format detailed README.md

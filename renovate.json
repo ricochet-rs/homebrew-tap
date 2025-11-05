@@ -1,34 +1,20 @@
 {
   "$schema": "https://docs.renovatebot.com/renovate-schema.json",
-  "extends": [
-    "github>ricochet-rs/renovate-config"
-  ],
+  "extends": ["github>ricochet-rs/renovate-config"],
   "packageRules": [
     {
       "description": "Automerge CI deps",
       "groupName": "ci deps non-major",
-      "matchManagers": [
-        "crow"
-      ],
-      "matchUpdateTypes": [
-        "minor",
-        "patch"
-      ],
+      "matchManagers": ["crow"],
+      "matchUpdateTypes": ["minor", "patch"],
       "automerge": true,
-      "matchPackageNames": [
-        "/homebrew/brew/"
-      ]
+      "matchPackageNames": ["/homebrew/brew/"]
     },
     {
       "description": "Automerge tap updates",
       "groupName": "homebrew updates",
-      "matchManagers": [
-        "homebrew"
-      ],
-      "matchUpdateTypes": [
-        "minor",
-        "patch"
-      ],
+      "matchManagers": ["homebrew"],
+      "matchUpdateTypes": ["minor", "patch"],
       "automerge": true
     }
   ]
