@@ -17,7 +17,7 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v6
         with:
-          token: ${{ secrets.GITHUB_TOKEN }}
+          ssh-key: ${{ secrets.ACTIONS_DEPLOY_KEY }}
           ref: main
           fetch-depth: 0
 
@@ -28,15 +28,21 @@ jobs:
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
+          # Switch remote to SSH for push with deploy key
+          git remote set-url origin git@github.com:${{ github.repository }}.git
 
-      - name: Extract version from tag
+      - name: Extract version from triggering workflow
         id: version
         run: |
-          # Get the tag that triggered the original workflow
+          # Get the tag that triggered publish.yml
           TAG_NAME="${{ github.event.workflow_run.head_branch }}"
           VERSION="${TAG_NAME#v}"
+          if [ -z "$VERSION" ]; then
+            echo "Failed to extract version from tag: ${TAG_NAME}"
+            exit 1
+          fi
           echo "version=${VERSION}" >> "$GITHUB_OUTPUT"
-          echo "Version: ${VERSION}"
+          echo "Version: ${VERSION} (from tag ${TAG_NAME})"
 
       - name: Download bottle JSON files from release
         env:
@@ -73,17 +79,15 @@ jobs:
           git diff Formula/ricochet.rb || echo "No changes"
 
       - name: Commit and push formula update
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           if ! git diff --quiet Formula/ricochet.rb; then
+            # Set up SSH key for push
+            eval "$(ssh-agent -s)"
+            ssh-add - <<< "${{ secrets.ACTIONS_DEPLOY_KEY }}"
+
             git add Formula/ricochet.rb
             git commit -m "[ci skip] Add bottles for v${{ steps.version.outputs.version }}"
-
-            # Push using GitHub CLI which handles authentication
-            gh auth setup-git
             git push origin main
-
             echo "✅ Formula updated with bottle block"
           else
             echo "⚠️ No changes to formula"

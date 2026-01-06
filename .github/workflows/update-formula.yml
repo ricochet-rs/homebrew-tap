@@ -17,19 +17,33 @@ jobs:
     steps:
       - name: Checkout tap
         uses: actions/checkout@v6
+        with:
+          ssh-key: ${{ secrets.ACTIONS_DEPLOY_KEY }}
 
       - name: Set up Homebrew
         uses: Homebrew/actions/setup-homebrew@master
+
+      - name: Setup tap
+        run: |
+          mkdir -p "$(brew --repo)/Library/Taps/ricochet-rs"
+          ln -sf "$GITHUB_WORKSPACE" "$(brew --repo)/Library/Taps/ricochet-rs/homebrew-tap"
 
       - name: Configure git
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
+          # Switch remote to SSH for push with deploy key
+          git remote set-url origin git@github.com:${{ github.repository }}.git
 
       - name: Parse version
         id: version
         run: |
+          echo "Raw input: '${{ inputs.version }}'"
           VERSION="${{ inputs.version }}"
+          if [ -z "$VERSION" ]; then
+            echo "❌ Error: version input is required but was empty"
+            exit 1
+          fi
           VERSION="${VERSION#v}"
           echo "version=${VERSION}" >> "$GITHUB_OUTPUT"
           echo "Updating to version: ${VERSION}"
@@ -48,22 +62,23 @@ jobs:
             --no-browse \
             ricochet-rs/tap/ricochet
 
-      - name: Commit and push formula update
+      - name: Commit, push, and create tag
         run: |
           VERSION="${{ steps.version.outputs.version }}"
 
           if git diff --quiet Formula/ricochet.rb; then
-            echo "No changes to formula"
-          else
-            git add Formula/ricochet.rb
-            git commit -m "ricochet ${VERSION}"
-            git push
-            echo "Formula updated and pushed"
+            echo "❌ No changes to formula - bump may have failed"
+            exit 1
           fi
 
-      - name: Create tag
-        run: |
-          VERSION="${{ steps.version.outputs.version }}"
+          # Set up SSH
+          eval "$(ssh-agent -s)"
+          ssh-add - <<< "${{ secrets.ACTIONS_DEPLOY_KEY }}"
+
+          git add Formula/ricochet.rb
+          git commit -m "ricochet ${VERSION}"
+          git push
+          echo "✅ Formula updated and pushed"
 
           git tag -a "v${VERSION}" -m "Release v${VERSION}"
           git push origin "v${VERSION}"

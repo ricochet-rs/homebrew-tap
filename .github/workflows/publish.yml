@@ -11,7 +11,63 @@ permissions:
   pull-requests: write
 
 jobs:
+  update-formula:
+    if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v')
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+        with:
+          ssh-key: ${{ secrets.ACTIONS_DEPLOY_KEY }}
+
+      - name: Configure git
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git remote set-url origin git@github.com:${{ github.repository }}.git
+
+      - name: Extract version from tag
+        id: version
+        run: |
+          VERSION="${GITHUB_REF#refs/tags/v}"
+          echo "version=${VERSION}" >> "$GITHUB_OUTPUT"
+          echo "Version: ${VERSION}"
+
+      - name: Update formula source URL
+        run: |
+          VERSION="${{ steps.version.outputs.version }}"
+          URL="https://github.com/ricochet-rs/cli/archive/refs/tags/v${VERSION}.tar.gz"
+
+          echo "Updating formula source URL to ${URL}"
+
+          # Download and calculate SHA256
+          SHA256=$(curl -sL "${URL}" | shasum -a 256 | cut -d' ' -f1)
+          echo "SHA256: ${SHA256}"
+
+          # Update the formula
+          sed -i "s|url \"https://github.com/ricochet-rs/cli/archive/refs/tags/v[^\"]*\"|url \"${URL}\"|" Formula/ricochet.rb
+          sed -i "s|^\([[:space:]]*\)sha256 \"[a-f0-9]\{64\}\"|\1sha256 \"${SHA256}\"|" Formula/ricochet.rb
+
+          echo "Updated formula:"
+          head -10 Formula/ricochet.rb
+
+      - name: Set up SSH and push
+        run: |
+          eval "$(ssh-agent -s)"
+          ssh-add - <<< "${{ secrets.ACTIONS_DEPLOY_KEY }}"
+
+          if ! git diff --quiet Formula/ricochet.rb; then
+            git add Formula/ricochet.rb
+            git commit -m "ricochet ${{ steps.version.outputs.version }}"
+            git push origin HEAD:main
+            echo "✅ Formula updated"
+          else
+            echo "No changes needed"
+          fi
+
   build-bottle:
+    needs: update-formula
+    if: always() && (needs.update-formula.result == 'success' || needs.update-formula.result == 'skipped')
     strategy:
       matrix:
         os:
@@ -21,6 +77,11 @@ jobs:
           - macos-14 # macOS Sonoma (Apple Silicon)
     runs-on: ${{ matrix.os }}
     steps:
+      - name: Checkout tap (with updated formula)
+        uses: actions/checkout@v6
+        with:
+          ref: main
+
       - name: Set up Homebrew
         id: set-up-homebrew
         uses: Homebrew/actions/setup-homebrew@main
@@ -32,15 +93,21 @@ jobs:
           key: ${{ matrix.os }}-rubygems-${{ steps.set-up-homebrew.outputs.gems-hash }}
           restore-keys: ${{ matrix.os }}-rubygems-
 
-      - name: Checkout tap
+      - name: Link tap to Homebrew
         run: |
           mkdir -p "$(brew --repo)/Library/Taps/ricochet-rs"
-          ln -s "$GITHUB_WORKSPACE" "$(brew --repo)/Library/Taps/ricochet-rs/homebrew-tap"
+          ln -sf "$GITHUB_WORKSPACE" "$(brew --repo)/Library/Taps/ricochet-rs/homebrew-tap"
 
-      - name: Extract version from formula
+      - name: Extract version from tag or formula
         id: version
         run: |
-          VERSION=$(grep -m1 'url' Formula/ricochet.rb | sed 's/.*\/v\([0-9.]*[0-9]\).*/\1/' || echo "0.1.0")
+          if [[ "$GITHUB_REF" == refs/tags/v* ]]; then
+            # Use the tag directly when triggered by tag push
+            VERSION="${GITHUB_REF#refs/tags/v}"
+          else
+            # Fall back to formula for workflow_dispatch
+            VERSION=$(grep -m1 'url' Formula/ricochet.rb | sed 's/.*\/v\([0-9.]*[0-9]\).*/\1/' || echo "0.1.0")
+          fi
           echo "version=${VERSION}" >> "$GITHUB_OUTPUT"
           echo "Detected version: ${VERSION}"
 
@@ -117,12 +184,13 @@ jobs:
             fi
           done
 
-      - name: Extract version from formula
+      - name: Extract version from tag
         id: version
         run: |
-          VERSION=$(grep -m1 'url' Formula/ricochet.rb | sed 's/.*\/v\([0-9.]*[0-9]\).*/\1/' || echo "0.1.0")
-          echo "version=v${VERSION}" >> "$GITHUB_OUTPUT"
-          echo "Detected version: v${VERSION}"
+          # Use the tag that triggered the workflow
+          VERSION="${GITHUB_REF#refs/tags/}"
+          echo "version=${VERSION}" >> "$GITHUB_OUTPUT"
+          echo "Detected version: ${VERSION}"
 
       - name: Create or update release
         env:
