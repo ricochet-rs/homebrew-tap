@@ -67,7 +67,7 @@ jobs:
 
       - name: Upload bottles as artifact
         if: always()
-        uses: actions/upload-artifact@v5
+        uses: actions/upload-artifact@v6
         with:
           name: bottles-${{ matrix.os }}
           path: |
@@ -84,7 +84,7 @@ jobs:
         uses: actions/checkout@v5
 
       - name: Download all bottles
-        uses: actions/download-artifact@v6
+        uses: actions/download-artifact@v7
         with:
           pattern: bottles-*
           merge-multiple: true
