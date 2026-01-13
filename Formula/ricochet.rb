@@ -15,6 +15,9 @@ class Ricochet < Formula
 
   depends_on "rust" => :build
 
+  # Pass through environment for git auth (private dependencies)
+  env :std
+
   def install
     system "cargo", "install", *std_cargo_args
   end
