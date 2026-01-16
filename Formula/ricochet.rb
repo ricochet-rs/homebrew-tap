@@ -6,6 +6,13 @@ class Ricochet < Formula
   license "AGPL-3.0-or-later"
   head "https://github.com/ricochet-rs/cli.git", branch: "main"
 
+  # Private dependency - fetched separately with auth
+  resource "ricochet-core" do
+    url "https://github.com/ricochet-rs/ricochet.git",
+        revision: "43facc1ef308432a09b200abff9d4d3a8777a239",
+        using: :git
+  end
+
   bottle do
     root_url "https://github.com/ricochet-rs/homebrew-tap/releases/download/v0.1.0"
     sha256 cellar: :any_skip_relocation, arm64_sequoia: "d740615aac9ebc23ebfef9e787a98cab287c20da7810e5dab288759a97a534bf"
@@ -19,6 +26,18 @@ class Ricochet < Formula
   env :std
 
   def install
+    # Stage the private dependency locally
+    (buildpath/"deps/ricochet").install resource("ricochet-core")
+
+    # Patch the git dependency to use local path
+    File.open(buildpath/".cargo/config.toml", "a") do |f|
+      f.puts <<~TOML
+
+        [patch."https://github.com/ricochet-rs/ricochet"]
+        ricochet-core = { path = "#{buildpath}/deps/ricochet/ricochet-core" }
+      TOML
+    end
+
     system "cargo", "install", *std_cargo_args
   end
 

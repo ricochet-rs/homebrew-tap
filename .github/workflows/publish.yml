@@ -8,7 +8,6 @@ on:
 
 permissions:
   contents: write
-  pull-requests: write
 
 jobs:
   update-formula:
@@ -26,43 +25,31 @@ jobs:
           git config user.email "github-actions[bot]@users.noreply.github.com"
           git remote set-url origin git@github.com:${{ github.repository }}.git
 
-      - name: Extract version from tag
-        id: version
+      - name: Update formula and push
         run: |
           VERSION="${GITHUB_REF#refs/tags/v}"
-          echo "version=${VERSION}" >> "$GITHUB_OUTPUT"
-          echo "Version: ${VERSION}"
-
-      - name: Update formula source URL
-        run: |
-          VERSION="${{ steps.version.outputs.version }}"
           URL="https://github.com/ricochet-rs/cli/archive/refs/tags/v${VERSION}.tar.gz"
 
-          echo "Updating formula source URL to ${URL}"
+          # Download and extract to get Cargo.lock
+          curl -sL "${URL}" -o cli.tar.gz
+          SHA256=$(shasum -a 256 cli.tar.gz | cut -d' ' -f1)
+          tar -xzf cli.tar.gz
 
-          # Download and calculate SHA256
-          SHA256=$(curl -sL "${URL}" | shasum -a 256 | cut -d' ' -f1)
-          echo "SHA256: ${SHA256}"
+          # Extract ricochet-core commit from Cargo.lock
+          CORE_COMMIT=$(grep -A2 'name = "ricochet-core"' "cli-${VERSION}/Cargo.lock" | grep 'source = "git' | sed 's/.*#\([a-f0-9]*\)"/\1/')
+          echo "Updating formula to v${VERSION} (SHA256: ${SHA256}, ricochet-core: ${CORE_COMMIT})"
 
-          # Update the formula
           sed -i "s|url \"https://github.com/ricochet-rs/cli/archive/refs/tags/v[^\"]*\"|url \"${URL}\"|" Formula/ricochet.rb
           sed -i "s|^\([[:space:]]*\)sha256 \"[a-f0-9]\{64\}\"|\1sha256 \"${SHA256}\"|" Formula/ricochet.rb
+          sed -i "s|revision: \"[a-f0-9]*\"|revision: \"${CORE_COMMIT}\"|" Formula/ricochet.rb
 
-          echo "Updated formula:"
-          head -10 Formula/ricochet.rb
-
-      - name: Set up SSH and push
-        run: |
           eval "$(ssh-agent -s)"
           ssh-add - <<< "${{ secrets.ACTIONS_DEPLOY_KEY }}"
 
           if ! git diff --quiet Formula/ricochet.rb; then
             git add Formula/ricochet.rb
-            git commit -m "ricochet ${{ steps.version.outputs.version }}"
+            git commit -m "ricochet ${VERSION}"
             git push origin HEAD:main
-            echo "✅ Formula updated"
-          else
-            echo "No changes needed"
           fi
 
   build-bottle:
@@ -72,184 +59,106 @@ jobs:
     strategy:
       matrix:
         os:
-          - macos-26 # macOS Sequoia (Apple Silicon)
-          # - macos-15 # macOS Sequoia (Apple Silicon)
-          # - macos-15-intel # macOS Sequoia (Intel)
-          # - macos-14 # macOS Sonoma (Apple Silicon)
+          - macos-15
+          - macos-15-intel
+          - macos-14
+          - macos-26
     runs-on: ${{ matrix.os }}
     steps:
-      - name: Checkout tap (with updated formula)
+      - name: Checkout
         uses: actions/checkout@v6
         with:
           ref: main
 
-      - name: Ensure latest main
+      - name: Get latest main
         run: |
           git fetch origin main
           git reset --hard origin/main
-          echo "=== Formula after pull: ==="
-          head -6 Formula/ricochet.rb
+
+      - name: Configure git auth for private dependencies
+        run: |
+          echo "machine github.com login x-access-token password ${{ secrets.RICOCHET_PAT }}" > ~/.netrc
+          chmod 600 ~/.netrc
 
       - name: Set up Homebrew
-        id: set-up-homebrew
         uses: Homebrew/actions/setup-homebrew@main
 
-      - name: Cache Homebrew Bundler RubyGems
-        uses: actions/cache@v5
-        with:
-          path: ${{ steps.set-up-homebrew.outputs.gems-path }}
-          key: ${{ matrix.os }}-rubygems-${{ steps.set-up-homebrew.outputs.gems-hash }}
-          restore-keys: ${{ matrix.os }}-rubygems-
-
-      - name: Link tap to Homebrew
+      - name: Link tap
         run: |
           mkdir -p "$(brew --repo)/Library/Taps/ricochet-rs"
           ln -sf "$GITHUB_WORKSPACE" "$(brew --repo)/Library/Taps/ricochet-rs/homebrew-tap"
 
-      - name: Extract version from tag or formula
+      - name: Extract version
         id: version
         run: |
           if [[ "$GITHUB_REF" == refs/tags/v* ]]; then
-            # Use the tag directly when triggered by tag push
             VERSION="${GITHUB_REF#refs/tags/v}"
           else
-            # Fall back to formula for workflow_dispatch
-            VERSION=$(grep -m1 'url' Formula/ricochet.rb | sed 's/.*\/v\([0-9.]*[0-9]\).*/\1/' || echo "0.1.0")
+            VERSION=$(grep -m1 'url' Formula/ricochet.rb | sed 's/.*\/v\([0-9.]*[0-9]\).*/\1/')
           fi
           echo "version=${VERSION}" >> "$GITHUB_OUTPUT"
-          echo "Detected version: ${VERSION}"
 
       - name: Update formula to match tag
         if: startsWith(github.ref, 'refs/tags/v')
         run: |
           VERSION="${{ steps.version.outputs.version }}"
           URL="https://github.com/ricochet-rs/cli/archive/refs/tags/v${VERSION}.tar.gz"
-          FORMULA="$GITHUB_WORKSPACE/Formula/ricochet.rb"
 
-          echo "=== Updating formula to v${VERSION} ==="
-          SHA256=$(curl -sL --max-time 60 "${URL}" | shasum -a 256 | cut -d' ' -f1)
-          echo "SHA256: ${SHA256}"
+          # Download and extract to get Cargo.lock
+          curl -sL --max-time 60 "${URL}" -o cli.tar.gz
+          SHA256=$(shasum -a 256 cli.tar.gz | cut -d' ' -f1)
+          tar -xzf cli.tar.gz
 
-          sed -i '' "s|url \"https://github.com/ricochet-rs/cli/archive/refs/tags/v[^\"]*\"|url \"${URL}\"|" "$FORMULA"
-          sed -i '' "s|sha256 \"[a-f0-9]\{64\}\"|sha256 \"${SHA256}\"|" "$FORMULA"
+          # Extract ricochet-core commit from Cargo.lock
+          CORE_COMMIT=$(grep -A2 'name = "ricochet-core"' "cli-${VERSION}/Cargo.lock" | grep 'source = "git' | sed 's/.*#\([a-f0-9]*\)"/\1/')
+          echo "Updating formula to v${VERSION} (SHA256: ${SHA256}, ricochet-core: ${CORE_COMMIT})"
 
-          echo "=== Updated formula: ==="
-          head -6 "$FORMULA"
-
-      - name: Configure git for private dependencies
-        run: |
-          # Method 1: Git URL rewriting
-          git config --global url."https://${{ secrets.RICOCHET_PAT }}@github.com/".insteadOf "https://github.com/"
-
-          # Method 2: .netrc file (more universal)
-          echo "machine github.com login x-access-token password ${{ secrets.RICOCHET_PAT }}" > ~/.netrc
-          chmod 600 ~/.netrc
-
-          # Method 3: Git credential helper
-          git config --global credential.helper store
-          echo "https://x-access-token:${{ secrets.RICOCHET_PAT }}@github.com" > ~/.git-credentials
-          chmod 600 ~/.git-credentials
-
-          echo "=== Git config set ==="
-          git config --global --list | grep -v token | grep -v password || true
+          sed -i '' "s|url \"https://github.com/ricochet-rs/cli/archive/refs/tags/v[^\"]*\"|url \"${URL}\"|" Formula/ricochet.rb
+          sed -i '' "s|sha256 \"[a-f0-9]\{64\}\"|sha256 \"${SHA256}\"|" Formula/ricochet.rb
+          sed -i '' "s|revision: \"[a-f0-9]*\"|revision: \"${CORE_COMMIT}\"|" Formula/ricochet.rb
 
       - name: Build bottle
         env:
           HOMEBREW_NO_AUTO_UPDATE: "1"
-          HOMEBREW_NO_INSTALL_UPGRADE: "1"
-          CARGO_NET_GIT_FETCH_WITH_CLI: "true"
-          GIT_TERMINAL_PROMPT: "0"
         run: |
-          # Remove conflicting Python symlinks proactively
-          echo "Cleaning up any conflicting Python links..."
-          rm -f /usr/local/bin/idle3.13 \
-                /usr/local/bin/pip3.13 \
-                /usr/local/bin/pydoc3.13 \
-                /usr/local/bin/python3.13 \
-                /usr/local/bin/python3.13-config 2>/dev/null || true
-
-          # Uninstall if already present to avoid rebuild numbers
-          brew uninstall --ignore-dependencies ricochet-rs/tap/ricochet 2>/dev/null || true
-
-          # Install from source with bottle build flags
-          brew install --build-bottle ricochet-rs/tap/ricochet
-
-          # Create bottle
+          brew install --build-bottle --verbose ricochet-rs/tap/ricochet
           brew bottle --no-rebuild --json --root-url=https://github.com/${{ github.repository }}/releases/download/v${{ steps.version.outputs.version }} ricochet-rs/tap/ricochet
 
-      - name: Upload bottles as artifact
-        if: always()
+      - name: Upload bottles
         uses: actions/upload-artifact@v6
         with:
           name: bottles-${{ matrix.os }}
           path: |
             *.bottle.*
             *.json
-          if-no-files-found: ignore
 
   upload-bottles:
     needs: build-bottle
     if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v')
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout
-        uses: actions/checkout@v6
-
-      - name: Download all bottles
+      - name: Download bottles
         uses: actions/download-artifact@v7
         with:
           pattern: bottles-*
           merge-multiple: true
 
-      - name: List downloaded files
-        run: ls -la
-
-      - name: Rename bottles (remove double dash)
+      - name: Rename bottles
         run: |
-          # Rename bottle tar.gz files
           for file in ricochet--*.bottle.tar.gz; do
-            if [ -f "$file" ]; then
-              newname=$(echo "$file" | sed 's/ricochet--/ricochet-/')
-              mv "$file" "$newname"
-              echo "Renamed: $file -> $newname"
-            fi
+            [ -f "$file" ] && mv "$file" "${file/ricochet--/ricochet-}"
+          done
+          for file in ricochet--*.bottle.json; do
+            [ -f "$file" ] && sed -i 's/ricochet--/ricochet-/g' "$file" && mv "$file" "${file/ricochet--/ricochet-}"
           done
 
-          # Update JSON files to reference the new filenames
-          for jsonfile in ricochet--*.bottle.json; do
-            if [ -f "$jsonfile" ]; then
-              # Update the local_filename in JSON to use single dash
-              sed -i 's/"local_filename": "ricochet--/"local_filename": "ricochet-/g' "$jsonfile"
-              sed -i 's/"filename": "ricochet-/"filename": "ricochet-/g' "$jsonfile"
-              # Rename the JSON file itself
-              newjsonname=$(echo "$jsonfile" | sed 's/ricochet--/ricochet-/')
-              mv "$jsonfile" "$newjsonname"
-              echo "Renamed: $jsonfile -> $newjsonname"
-            fi
-          done
-
-      - name: Extract version from tag
-        id: version
-        run: |
-          # Use the tag that triggered the workflow
-          VERSION="${GITHUB_REF#refs/tags/}"
-          echo "version=${VERSION}" >> "$GITHUB_OUTPUT"
-          echo "Detected version: ${VERSION}"
-
-      - name: Create or update release
+      - name: Upload to release
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          VERSION="${{ steps.version.outputs.version }}"
-
-          # Check if release exists
-          if gh release view "$VERSION" >/dev/null 2>&1; then
-            echo "Release $VERSION already exists, uploading bottles..."
-            gh release upload "$VERSION" ./*.bottle.* --clobber
+          VERSION="${GITHUB_REF#refs/tags/}"
+          if gh release view "$VERSION" --repo ${{ github.repository }} >/dev/null 2>&1; then
+            gh release upload "$VERSION" ./*.bottle.* --repo ${{ github.repository }} --clobber
           else
-            echo "Creating new release $VERSION..."
-            gh release create "$VERSION" \
-              --title "$VERSION" \
-              --notes "Automated release for $VERSION" \
-              -- ./*.bottle.*
+            gh release create "$VERSION" --repo ${{ github.repository }} --title "$VERSION" --notes "Release $VERSION" ./*.bottle.*
           fi
