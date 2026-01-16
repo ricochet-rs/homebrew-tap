@@ -15,9 +15,10 @@ class Ricochet < Formula
 
   bottle do
     root_url "https://github.com/ricochet-rs/homebrew-tap/releases/download/v0.2.0"
-    sha256 cellar: :any_skip_relocation, arm64_tahoe:   "b80b07565977424f53e04a6b5a3e62f3a88007c362e4587156329338038b9356"
-    sha256 cellar: :any_skip_relocation, arm64_sequoia: "e5fc1467358ac47ed3cac3fbf52f4081116f426f81eff59436fd49e5ec34f726"
-    sha256 cellar: :any_skip_relocation, arm64_sonoma:  "2b5f0c374945f961a748dedbae96b16a7bef3658d77ff1d5b9ca07023c61a83f"
+    sha256 cellar: :any_skip_relocation, arm64_tahoe:   "861fe97359feb0c8ec670aec96177dc60e3395e341b31ad37ce060cf63edc3df"
+    sha256 cellar: :any_skip_relocation, arm64_sequoia: "ec586c77a21945c603eee9a324b131d03b605f50a2a600f4f1c647451fe907df"
+    sha256 cellar: :any_skip_relocation, arm64_sonoma:  "2cb38765d2b99c8f648034f8f630dda1dfe5fffaf94dd57dd8e5fca188044153"
+    sha256 cellar: :any_skip_relocation, sequoia:       "3f359d7cbeeca6df915c9a8980823982d5ad4ebd8c9a0fccce09aac1a67a4744"
   end
 
   depends_on "rust" => :build
