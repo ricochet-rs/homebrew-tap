@@ -42,6 +42,7 @@ jobs:
           sed -i "s|url \"https://github.com/ricochet-rs/cli/archive/refs/tags/v[^\"]*\"|url \"${URL}\"|" Formula/ricochet.rb
           sed -i "s|^\([[:space:]]*\)sha256 \"[a-f0-9]\{64\}\"|\1sha256 \"${SHA256}\"|" Formula/ricochet.rb
           sed -i "s|revision: \"[a-f0-9]*\"|revision: \"${CORE_COMMIT}\"|" Formula/ricochet.rb
+          sed -i "s|root_url \"https://github.com/${{ github.repository }}/releases/download/v[^\"]*\"|root_url \"https://github.com/${{ github.repository }}/releases/download/v${VERSION}\"|" Formula/ricochet.rb
 
           eval "$(ssh-agent -s)"
           ssh-add - <<< "${{ secrets.ACTIONS_DEPLOY_KEY }}"
@@ -116,6 +117,7 @@ jobs:
           sed -i '' "s|url \"https://github.com/ricochet-rs/cli/archive/refs/tags/v[^\"]*\"|url \"${URL}\"|" Formula/ricochet.rb
           sed -i '' "s|sha256 \"[a-f0-9]\{64\}\"|sha256 \"${SHA256}\"|" Formula/ricochet.rb
           sed -i '' "s|revision: \"[a-f0-9]*\"|revision: \"${CORE_COMMIT}\"|" Formula/ricochet.rb
+          sed -i '' "s|root_url \"https://github.com/${{ github.repository }}/releases/download/v[^\"]*\"|root_url \"https://github.com/${{ github.repository }}/releases/download/v${VERSION}\"|" Formula/ricochet.rb
 
       - name: Build bottle
         env:
