@@ -127,7 +127,7 @@ jobs:
           brew bottle --no-rebuild --json --root-url=https://github.com/${{ github.repository }}/releases/download/v${{ steps.version.outputs.version }} ricochet-rs/tap/ricochet
 
       - name: Upload bottles
-        uses: actions/upload-artifact@v6
+        uses: actions/upload-artifact@v7
         with:
           name: bottles-${{ matrix.os }}
           path: |
@@ -140,7 +140,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Download bottles
-        uses: actions/download-artifact@v7
+        uses: actions/download-artifact@v8
         with:
           pattern: bottles-*
           merge-multiple: true
