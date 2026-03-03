@@ -1,8 +1,8 @@
 class Ricochet < Formula
   desc "Put R & Julia in production"
   homepage "https://github.com/ricochet-rs/cli"
-  url "https://github.com/ricochet-rs/cli/archive/refs/tags/v0.4.0.tar.gz"
-  sha256 "66c132e15a75a47a2c89ab5da2d13a2a055d65f5c338bfd3b73353058ba911ec"
+  url "https://github.com/ricochet-rs/cli/archive/refs/tags/v0.5.0.tar.gz"
+  sha256 "3898e38862ee408cadad5ecfedad0f5de5bef8ac7395c92ec0e5a2b1061f69cf"
   license "AGPL-3.0-or-later"
   head "https://github.com/ricochet-rs/cli.git", branch: "main"
 
