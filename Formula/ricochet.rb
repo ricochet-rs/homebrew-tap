@@ -2,22 +2,15 @@ class Ricochet < Formula
   desc "Put R & Julia in production"
   homepage "https://github.com/ricochet-rs/cli"
   url "https://github.com/ricochet-rs/cli/archive/refs/tags/v0.5.0.tar.gz"
-  sha256 "3898e38862ee408cadad5ecfedad0f5de5bef8ac7395c92ec0e5a2b1061f69cf"
+  sha256 "b01cc142f9ec7f7e60f3381b401aa2672248f2c9c9bb9ee73263ca2ce9f7e35c"
   license "AGPL-3.0-or-later"
   head "https://github.com/ricochet-rs/cli.git", branch: "main"
-
-  bottle do
-    root_url "https://github.com/ricochet-rs/homebrew-tap/releases/download/v0.5.0"
-    sha256 cellar: :any_skip_relocation, arm64_tahoe:   "2aec77b3bb0737e0552de1bc14933e634d332c3eb37ba3069ca5bb859e38249e"
-    sha256 cellar: :any_skip_relocation, arm64_sequoia: "eccfe2f7eea2940a501884754be92647766137b10f940fd8cd208e671c94532d"
-    sha256 cellar: :any_skip_relocation, arm64_sonoma:  "aa750819572ea2565a9fbf0f689e84b9c3f974e1da68313800b745e9f32498b4"
-    sha256 cellar: :any_skip_relocation, sequoia:       "b4e8f878b74b18e572f0ba249e163493ca99da9c87fdac0511c4d6ecebd943af"
-  end
 
   # Private dependency - fetched separately with auth
   resource "ricochet-core" do
     url "https://github.com/ricochet-rs/ricochet.git",
-        revision: "",
+        tag: "v0.3.0",
+        revision: "261dce7ec307133c8b6d5894cc104e2e5870d5cd",
         using: :git
   end
 
