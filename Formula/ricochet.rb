@@ -7,7 +7,7 @@ class Ricochet < Formula
   head "https://github.com/ricochet-rs/cli.git", branch: "main"
 
   bottle do
-    root_url "https://github.com/ricochet-rs/homebrew-tap/releases/download/v0.4.0"
+    root_url "https://github.com/ricochet-rs/homebrew-tap/releases/download/v0.5.0"
     sha256 cellar: :any_skip_relocation, arm64_tahoe:   "2aec77b3bb0737e0552de1bc14933e634d332c3eb37ba3069ca5bb859e38249e"
     sha256 cellar: :any_skip_relocation, arm64_sequoia: "eccfe2f7eea2940a501884754be92647766137b10f940fd8cd208e671c94532d"
     sha256 cellar: :any_skip_relocation, arm64_sonoma:  "aa750819572ea2565a9fbf0f689e84b9c3f974e1da68313800b745e9f32498b4"
@@ -17,7 +17,7 @@ class Ricochet < Formula
   # Private dependency - fetched separately with auth
   resource "ricochet-core" do
     url "https://github.com/ricochet-rs/ricochet.git",
-        revision: "949dfc49c9f3c717607487ddf9c1cb0840851b46",
+        revision: "",
         using: :git
   end
 
