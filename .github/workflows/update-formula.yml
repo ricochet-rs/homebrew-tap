@@ -62,6 +62,36 @@ jobs:
             --no-browse \
             ricochet-rs/tap/ricochet
 
+      - name: Update ricochet-core resource
+        run: |
+          VERSION="${{ steps.version.outputs.version }}"
+
+          # Fetch Cargo.lock from the CLI release tag to find the pinned ricochet-core commit
+          CARGO_LOCK=$(curl -sfL "https://raw.githubusercontent.com/ricochet-rs/cli/v${VERSION}/Cargo.lock")
+          CORE_REV=$(echo "$CARGO_LOCK" | awk '/^name = "ricochet-core"/{getline;getline;sub(/.*#/,"");gsub(/"/,"");print}' | tr -d '[:space:]')
+
+          if [ -z "$CORE_REV" ]; then
+            echo "⚠️ Could not resolve ricochet-core revision from Cargo.lock, skipping resource update"
+            exit 0
+          fi
+          echo "ricochet-core revision: $CORE_REV"
+
+          # Find which tag in the ricochet repo points to this commit (check dereferenced ^{} entries for annotated tags)
+          CORE_TAG=$(git ls-remote --tags https://github.com/ricochet-rs/ricochet.git \
+            | grep "$CORE_REV" | sed 's|.*refs/tags/||' | sed 's/\^{}//' | sort -V | tail -1)
+
+          if [ -n "$CORE_TAG" ]; then
+            echo "ricochet-core tag: $CORE_TAG"
+            sed -i "s|tag: \"[^\"]*\"|tag: \"$CORE_TAG\"|" Formula/ricochet.rb
+            sed -i "s|revision: \"[^\"]*\"|revision: \"$CORE_REV\"|" Formula/ricochet.rb
+          else
+            echo "No tag found for $CORE_REV, using revision only"
+            # Replace tag: + revision: lines with just revision:
+            sed -i '/tag: "[^"]*",$/d' Formula/ricochet.rb
+            sed -i "s|revision: \"[^\"]*\"|revision: \"$CORE_REV\"|" Formula/ricochet.rb
+          fi
+          echo "✅ Updated ricochet-core resource"
+
       - name: Commit, push, and create tag
         run: |
           VERSION="${{ steps.version.outputs.version }}"
