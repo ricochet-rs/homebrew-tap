@@ -17,7 +17,7 @@ class Ricochet < Formula
   # Private dependency - fetched separately with auth
   resource "ricochet-core" do
     url "https://github.com/ricochet-rs/ricochet.git",
-        revision: "60f13a2bd0e6242166d099cfa663b2c4903664d0",
+        revision: "64e8faec8703595c3de5ca1f7e1c9f59b6e9e016",
         using: :git
   end
 
