@@ -8,10 +8,10 @@ class Ricochet < Formula
 
   bottle do
     root_url "https://github.com/ricochet-rs/homebrew-tap/releases/download/v1.0.0"
-    sha256 cellar: :any_skip_relocation, arm64_tahoe:   "a2941e6701882f46c76bd05ad532c9b5fdc018126bc5708d92fa5b80801ec484"
-    sha256 cellar: :any_skip_relocation, arm64_sequoia: "9af1ff3e00b82b6e859e198c08dd269da9d462d43a111bcdbb582f79cda34568"
-    sha256 cellar: :any_skip_relocation, arm64_sonoma:  "40b638d90d7ab63e55a979bb866fe822aaab99899bdbfbce4fe30c89cc71423e"
-    sha256 cellar: :any_skip_relocation, sequoia:       "93c4f2db598b020b011e8300ee385b20aa586de584eaaf0b6651dcaeac440686"
+    sha256 cellar: :any_skip_relocation, arm64_tahoe:   "c09d22394ca74030f8608e0c3073895638540dee2baf60b4f11af0d9632a6fc6"
+    sha256 cellar: :any_skip_relocation, arm64_sequoia: "d0c52f2a932b5140c863b601f708944264151a8cfd3542609504726ad4f852bd"
+    sha256 cellar: :any_skip_relocation, arm64_sonoma:  "0ead89a181f6d843cb8c20092306df2568937c0efce8b0021c20e1ced156fd0a"
+    sha256 cellar: :any_skip_relocation, sequoia:       "e87aa902e554fb30a75a6b73a76158051ae7de8a891758812a061dc9d6727d94"
   end
 
   # Private dependency - fetched separately with auth
