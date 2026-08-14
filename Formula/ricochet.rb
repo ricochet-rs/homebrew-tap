@@ -7,7 +7,7 @@ class Ricochet < Formula
   head "https://github.com/ricochet-rs/cli.git", branch: "main"
 
   bottle do
-    root_url "https://github.com/ricochet-rs/homebrew-tap/releases/download/v1.0.0"
+    root_url "https://github.com/ricochet-rs/homebrew-tap/releases/download/v1.1.0"
     sha256 cellar: :any_skip_relocation, arm64_tahoe:   "c09d22394ca74030f8608e0c3073895638540dee2baf60b4f11af0d9632a6fc6"
     sha256 cellar: :any_skip_relocation, arm64_sequoia: "d0c52f2a932b5140c863b601f708944264151a8cfd3542609504726ad4f852bd"
     sha256 cellar: :any_skip_relocation, arm64_sonoma:  "0ead89a181f6d843cb8c20092306df2568937c0efce8b0021c20e1ced156fd0a"
