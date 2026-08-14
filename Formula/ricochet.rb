@@ -1,8 +1,8 @@
 class Ricochet < Formula
   desc "Put R & Julia in production"
   homepage "https://github.com/ricochet-rs/cli"
-  url "https://github.com/ricochet-rs/cli/archive/refs/tags/v1.0.0.tar.gz"
-  sha256 "f2b357c776492ae76adcf8fdd1da2604ea305a9c5b2d166a51b5ba78fd8a8d11"
+  url "https://github.com/ricochet-rs/cli/archive/refs/tags/v1.1.0.tar.gz"
+  sha256 "caaa675bee34137d829eb3cf612c84b97e446ddc22dea6504da5df0cb9e357ca"
   license "AGPL-3.0-or-later"
   head "https://github.com/ricochet-rs/cli.git", branch: "main"
 
@@ -17,7 +17,7 @@ class Ricochet < Formula
   # Private dependency - fetched separately with auth
   resource "ricochet-core" do
     url "https://github.com/ricochet-rs/ricochet.git",
-        revision: "64e8faec8703595c3de5ca1f7e1c9f59b6e9e016",
+        revision: "d98cdd447b1e95a88312f72e22ec799497b19977",
         using: :git
   end
 
