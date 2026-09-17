@@ -7,12 +7,22 @@ on:
       - completed
 
 permissions:
+  actions: read
   contents: write
+
+concurrency:
+  group: update-bottle-formula
+  cancel-in-progress: false
+
+defaults:
+  run:
+    shell: bash
 
 jobs:
   update-formula:
     if: github.event.workflow_run.conclusion == 'success'
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     steps:
       - name: Checkout
         uses: actions/checkout@v7
@@ -22,7 +32,7 @@ jobs:
           fetch-depth: 0
 
       - name: Set up Homebrew
-        uses: Homebrew/actions/setup-homebrew@master
+        uses: Homebrew/actions/setup-homebrew@main
 
       - name: Configure git
         run: |
@@ -31,20 +41,25 @@ jobs:
           # Switch remote to SSH for push with deploy key
           git remote set-url origin git@github.com:${{ github.repository }}.git
 
-      - name: Extract version from triggering workflow
+      - name: Read release version
         id: version
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RUN_ID: ${{ github.event.workflow_run.id }}
         run: |
-          # Get the tag that triggered publish.yml
-          TAG_NAME="${{ github.event.workflow_run.head_branch }}"
-          VERSION="${TAG_NAME#v}"
-          if [ -z "$VERSION" ]; then
-            echo "Failed to extract version from tag: ${TAG_NAME}"
-            exit 1
-          fi
+          gh run download "$RUN_ID" --name release-metadata
+          VERSION=$(cat release-version.txt)
+          [[ "$VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]
           echo "version=${VERSION}" >> "$GITHUB_OUTPUT"
-          echo "Version: ${VERSION} (from tag ${TAG_NAME})"
+          CURRENT_VERSION=$(sed -n 's|^  url ".*/v\([^"]*\).tar.gz"|\1|p' Formula/ricochet.rb)
+          if [[ "$CURRENT_VERSION" == "$VERSION" ]]; then
+            echo "current=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "Skip bottles for v${VERSION}: formula is at v${CURRENT_VERSION}"
+          fi
 
       - name: Download bottle JSON files from release
+        if: steps.version.outputs.current == 'true'
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
@@ -57,14 +72,16 @@ jobs:
           }
 
           echo "Downloaded files:"
-          ls -la *.bottle.json
+          ls -la ./*.bottle.json
 
       - name: Setup tap for bottle merge
+        if: steps.version.outputs.current == 'true'
         run: |
           mkdir -p "$(brew --repo)/Library/Taps/ricochet-rs"
           ln -sf "$GITHUB_WORKSPACE" "$(brew --repo)/Library/Taps/ricochet-rs/homebrew-tap"
 
       - name: Merge bottles into formula
+        if: steps.version.outputs.current == 'true'
         run: |
           echo "Merging bottle metadata into formula..."
 
@@ -74,22 +91,23 @@ jobs:
           echo "✅ Bottle block merged into formula"
 
       - name: Verify formula changes
+        if: steps.version.outputs.current == 'true'
         run: |
           echo "Formula diff:"
           git diff Formula/ricochet.rb || echo "No changes"
 
       - name: Commit and push formula update
+        if: steps.version.outputs.current == 'true'
+        env:
+          VERSION: ${{ steps.version.outputs.version }}
         run: |
           if ! git diff --quiet Formula/ricochet.rb; then
-            # Set up SSH key for push
-            eval "$(ssh-agent -s)"
-            ssh-add - <<< "${{ secrets.ACTIONS_DEPLOY_KEY }}"
-
             git add Formula/ricochet.rb
-            git commit -m "[ci skip] Add bottles for v${{ steps.version.outputs.version }}"
-            git push origin main
+            git commit -m "chore(formula): add bottles for v${{ steps.version.outputs.version }}"
+            git pull --rebase origin main
+            grep -Fx "  url \"https://github.com/ricochet-rs/cli/archive/refs/tags/v${VERSION}.tar.gz\"" Formula/ricochet.rb
+            git push origin HEAD:main
             echo "✅ Formula updated with bottle block"
           else
-            echo "⚠️ No changes to formula"
-            exit 1
+            echo "Formula already has these bottles"
           fi
