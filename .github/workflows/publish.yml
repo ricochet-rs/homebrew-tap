@@ -5,19 +5,36 @@ on:
     tags:
       - "v*"
   workflow_dispatch:
+    inputs:
+      version:
+        description: "Existing release tag to publish (for example, v1.2.0)"
+        required: true
+        type: string
+
+concurrency:
+  group: publish-bottles
+  cancel-in-progress: false
+
+defaults:
+  run:
+    shell: bash
 
 permissions:
   contents: write
 
 jobs:
   update-formula:
-    if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v')
     runs-on: ubuntu-latest
+    timeout-minutes: 10
+    outputs:
+      commit: ${{ steps.formula.outputs.commit }}
+      version: ${{ steps.formula.outputs.version }}
     steps:
       - name: Checkout
         uses: actions/checkout@v7
         with:
           ssh-key: ${{ secrets.ACTIONS_DEPLOY_KEY }}
+          ref: main
 
       - name: Configure git
         run: |
@@ -26,38 +43,63 @@ jobs:
           git remote set-url origin git@github.com:${{ github.repository }}.git
 
       - name: Update formula and push
+        id: formula
+        env:
+          RELEASE_VERSION: ${{ inputs.version || github.ref_name }}
         run: |
-          VERSION="${GITHUB_REF#refs/tags/v}"
+          set -euo pipefail
+          VERSION="${RELEASE_VERSION#v}"
+          [[ "$VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]
+          git fetch origin "refs/tags/v${VERSION}"
+          CURRENT_VERSION=$(sed -n 's|^  url ".*/v\([^"]*\).tar.gz"|\1|p' Formula/ricochet.rb)
+          [[ -n "$CURRENT_VERSION" ]]
+          [[ "$(printf '%s\n' "$CURRENT_VERSION" "$VERSION" | sort -V | tail -1)" == "$VERSION" ]]
           URL="https://github.com/ricochet-rs/cli/archive/refs/tags/v${VERSION}.tar.gz"
 
           # Download and extract to get Cargo.lock
-          curl -sL "${URL}" -o cli.tar.gz
+          curl --fail --show-error --location --retry 3 --connect-timeout 15 --max-time 120 "${URL}" -o cli.tar.gz
           SHA256=$(shasum -a 256 cli.tar.gz | cut -d' ' -f1)
           tar -xzf cli.tar.gz
 
           # Extract ricochet-core commit from Cargo.lock
           CORE_COMMIT=$(grep -A2 'name = "ricochet-core"' "cli-${VERSION}/Cargo.lock" | grep 'source = "git' | sed 's/.*#\([a-f0-9]*\)"/\1/')
+          [[ "$CORE_COMMIT" =~ ^[a-f0-9]{40}$ ]]
           echo "Updating formula to v${VERSION} (SHA256: ${SHA256}, ricochet-core: ${CORE_COMMIT})"
+
+          if [[ "$CURRENT_VERSION" != "$VERSION" ]]; then
+            sed -i '/^  bottle do$/,/^  end$/d' Formula/ricochet.rb
+          fi
+          sed -i '/^[[:space:]]*tag: "[^"]*",$/d' Formula/ricochet.rb
 
           sed -i "s|url \"https://github.com/ricochet-rs/cli/archive/refs/tags/v[^\"]*\"|url \"${URL}\"|" Formula/ricochet.rb
           sed -i "s|^\([[:space:]]*\)sha256 \"[a-f0-9]\{64\}\"|\1sha256 \"${SHA256}\"|" Formula/ricochet.rb
           sed -i "s|revision: \"[a-f0-9]*\"|revision: \"${CORE_COMMIT}\"|" Formula/ricochet.rb
           sed -i "s|root_url \"https://github.com/${{ github.repository }}/releases/download/v[^\"]*\"|root_url \"https://github.com/${{ github.repository }}/releases/download/v${VERSION}\"|" Formula/ricochet.rb
 
-          eval "$(ssh-agent -s)"
-          ssh-add - <<< "${{ secrets.ACTIONS_DEPLOY_KEY }}"
-
           if ! git diff --quiet Formula/ricochet.rb; then
             git add Formula/ricochet.rb
-            git commit -m "ricochet ${VERSION}"
+            git commit -m "chore(formula): update ricochet to ${VERSION}"
+            git pull --rebase origin main
+            grep -Fx "  url \"${URL}\"" Formula/ricochet.rb
             git push origin HEAD:main
           fi
+          echo "commit=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
+          echo "version=${VERSION}" >> "$GITHUB_OUTPUT"
+          printf '%s\n' "$VERSION" > release-version.txt
+
+      - name: Upload release version
+        uses: actions/upload-artifact@v7
+        with:
+          name: release-metadata
+          path: release-version.txt
+          if-no-files-found: error
+          overwrite: true
 
   build-bottle:
     needs: update-formula
-    timeout-minutes: 15
-    if: always() && (needs.update-formula.result == 'success' || needs.update-formula.result == 'skipped')
+    timeout-minutes: 180
     strategy:
+      fail-fast: false
       matrix:
         os:
           - macos-15
@@ -69,17 +111,14 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v7
         with:
-          ref: main
-
-      - name: Get latest main
-        run: |
-          git fetch origin main
-          git reset --hard origin/main
+          ref: ${{ needs.update-formula.outputs.commit }}
 
       - name: Configure git auth for private dependencies
+        env:
+          RICOCHET_PAT: ${{ secrets.RICOCHET_PAT }}
         run: |
-          echo "machine github.com login x-access-token password ${{ secrets.RICOCHET_PAT }}" > ~/.netrc
-          chmod 600 ~/.netrc
+          umask 077
+          printf 'machine github.com login x-access-token password %s\n' "$RICOCHET_PAT" > ~/.netrc
 
       - name: Set up Homebrew
         uses: Homebrew/actions/setup-homebrew@main
@@ -89,54 +128,35 @@ jobs:
           mkdir -p "$(brew --repo)/Library/Taps/ricochet-rs"
           ln -sf "$GITHUB_WORKSPACE" "$(brew --repo)/Library/Taps/ricochet-rs/homebrew-tap"
 
-      - name: Extract version
-        id: version
-        run: |
-          if [[ "$GITHUB_REF" == refs/tags/v* ]]; then
-            VERSION="${GITHUB_REF#refs/tags/v}"
-          else
-            VERSION=$(grep -m1 'url' Formula/ricochet.rb | sed 's/.*\/v\([0-9.]*[0-9]\).*/\1/')
-          fi
-          echo "version=${VERSION}" >> "$GITHUB_OUTPUT"
-
-      - name: Update formula to match tag
-        if: startsWith(github.ref, 'refs/tags/v')
-        run: |
-          VERSION="${{ steps.version.outputs.version }}"
-          URL="https://github.com/ricochet-rs/cli/archive/refs/tags/v${VERSION}.tar.gz"
-
-          # Download and extract to get Cargo.lock
-          curl -sL --max-time 60 "${URL}" -o cli.tar.gz
-          SHA256=$(shasum -a 256 cli.tar.gz | cut -d' ' -f1)
-          tar -xzf cli.tar.gz
-
-          # Extract ricochet-core commit from Cargo.lock
-          CORE_COMMIT=$(grep -A2 'name = "ricochet-core"' "cli-${VERSION}/Cargo.lock" | grep 'source = "git' | sed 's/.*#\([a-f0-9]*\)"/\1/')
-          echo "Updating formula to v${VERSION} (SHA256: ${SHA256}, ricochet-core: ${CORE_COMMIT})"
-
-          sed -i '' "s|url \"https://github.com/ricochet-rs/cli/archive/refs/tags/v[^\"]*\"|url \"${URL}\"|" Formula/ricochet.rb
-          sed -i '' "s|sha256 \"[a-f0-9]\{64\}\"|sha256 \"${SHA256}\"|" Formula/ricochet.rb
-          sed -i '' "s|revision: \"[a-f0-9]*\"|revision: \"${CORE_COMMIT}\"|" Formula/ricochet.rb
-          sed -i '' "s|root_url \"https://github.com/${{ github.repository }}/releases/download/v[^\"]*\"|root_url \"https://github.com/${{ github.repository }}/releases/download/v${VERSION}\"|" Formula/ricochet.rb
+      - name: Install dependencies
+        env:
+          HOMEBREW_NO_AUTO_UPDATE: "1"
+        run: brew install --only-dependencies --build-from-source --verbose ricochet-rs/tap/ricochet
 
       - name: Build bottle
         env:
           HOMEBREW_NO_AUTO_UPDATE: "1"
+          VERSION: ${{ needs.update-formula.outputs.version }}
         run: |
           brew install --build-bottle --verbose ricochet-rs/tap/ricochet
-          brew bottle --no-rebuild --json --root-url=https://github.com/${{ github.repository }}/releases/download/v${{ steps.version.outputs.version }} ricochet-rs/tap/ricochet
+          brew test ricochet-rs/tap/ricochet
+          brew bottle --no-rebuild --json --root-url="https://github.com/${{ github.repository }}/releases/download/v${VERSION}" ricochet-rs/tap/ricochet
 
       - name: Upload bottles
         uses: actions/upload-artifact@v7
         with:
           name: bottles-${{ matrix.os }}
-          path: |
-            *.bottle.*
-            *.json
+          if-no-files-found: error
+          overwrite: true
+          path: "*.bottle.*"
+
+      - name: Remove dependency credentials
+        if: always()
+        run: rm -f ~/.netrc
 
   upload-bottles:
-    needs: build-bottle
-    if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v')
+    needs: [update-formula, build-bottle]
+    timeout-minutes: 10
     runs-on: ubuntu-latest
     steps:
       - name: Download bottles
@@ -146,21 +166,27 @@ jobs:
           merge-multiple: true
 
       - name: Rename bottles
+        env:
+          VERSION: ${{ needs.update-formula.outputs.version }}
         run: |
-          for file in ricochet--*.bottle.tar.gz; do
+          shopt -s nullglob
+          archives=(ricochet--"${VERSION}".*.bottle.tar.gz)
+          metadata=(ricochet--"${VERSION}".*.bottle.json)
+          [[ ${#archives[@]} -eq 4 && ${#metadata[@]} -eq 4 ]]
+          for file in "${archives[@]}"; do
             [ -f "$file" ] && mv "$file" "${file/ricochet--/ricochet-}"
           done
-          for file in ricochet--*.bottle.json; do
+          for file in "${metadata[@]}"; do
             [ -f "$file" ] && sed -i 's/ricochet--/ricochet-/g' "$file" && mv "$file" "${file/ricochet--/ricochet-}"
           done
 
       - name: Upload to release
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          VERSION: v${{ needs.update-formula.outputs.version }}
         run: |
-          VERSION="${GITHUB_REF#refs/tags/}"
           if gh release view "$VERSION" --repo ${{ github.repository }} >/dev/null 2>&1; then
             gh release upload "$VERSION" ./*.bottle.* --repo ${{ github.repository }} --clobber
           else
-            gh release create "$VERSION" --repo ${{ github.repository }} --title "$VERSION" --notes "Release $VERSION" ./*.bottle.*
+            gh release create "$VERSION" --verify-tag --repo ${{ github.repository }} --title "$VERSION" --notes "Release $VERSION" ./*.bottle.*
           fi
