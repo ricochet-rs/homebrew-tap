@@ -103,8 +103,6 @@ jobs:
       matrix:
         os:
           - macos-15
-          - macos-15-intel
-          - macos-14
           - macos-26
     runs-on: ${{ matrix.os }}
     steps:
@@ -172,7 +170,7 @@ jobs:
           shopt -s nullglob
           archives=(ricochet--"${VERSION}".*.bottle.tar.gz)
           metadata=(ricochet--"${VERSION}".*.bottle.json)
-          [[ ${#archives[@]} -eq 4 && ${#metadata[@]} -eq 4 ]]
+          [[ ${#archives[@]} -eq 2 && ${#metadata[@]} -eq 2 ]]
           for file in "${archives[@]}"; do
             [ -f "$file" ] && mv "$file" "${file/ricochet--/ricochet-}"
           done
