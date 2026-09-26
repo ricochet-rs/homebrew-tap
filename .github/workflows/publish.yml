@@ -46,6 +46,7 @@ jobs:
         id: formula
         env:
           RELEASE_VERSION: ${{ inputs.version || github.ref_name }}
+          DEPLOY_KEY: ${{ secrets.ACTIONS_DEPLOY_KEY }}
         run: |
           set -euo pipefail
           VERSION="${RELEASE_VERSION#v}"
@@ -81,6 +82,11 @@ jobs:
           sed -i "s|revision: \"[a-f0-9]*\"|revision: \"${CORE_COMMIT}\"|" Formula/ricochet.rb
 
           if ! git diff --quiet Formula/ricochet.rb; then
+            # The ruleset on main exempts deploy keys and organization admins only,
+            # so GITHUB_TOKEN cannot push here and the key has to be loaded.
+            eval "$(ssh-agent -s)"
+            ssh-add - <<< "$DEPLOY_KEY"
+
             git add Formula/ricochet.rb
             git commit -m "chore(formula): update ricochet to ${VERSION}"
             git pull --rebase origin main

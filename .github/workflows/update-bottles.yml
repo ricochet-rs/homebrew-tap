@@ -100,8 +100,14 @@ jobs:
         if: steps.version.outputs.current == 'true'
         env:
           VERSION: ${{ steps.version.outputs.version }}
+          DEPLOY_KEY: ${{ secrets.ACTIONS_DEPLOY_KEY }}
         run: |
           if ! git diff --quiet Formula/ricochet.rb; then
+            # The ruleset on main exempts deploy keys and organization admins only,
+            # so GITHUB_TOKEN cannot push here and the key has to be loaded.
+            eval "$(ssh-agent -s)"
+            ssh-add - <<< "$DEPLOY_KEY"
+
             git add Formula/ricochet.rb
             git commit -m "chore(formula): add bottles for v${{ steps.version.outputs.version }}"
             git pull --rebase origin main
