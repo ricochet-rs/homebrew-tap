@@ -66,15 +66,19 @@ jobs:
           [[ "$CORE_COMMIT" =~ ^[a-f0-9]{40}$ ]]
           echo "Updating formula to v${VERSION} (SHA256: ${SHA256}, ricochet-core: ${CORE_COMMIT})"
 
-          if [[ "$CURRENT_VERSION" != "$VERSION" ]]; then
-            sed -i '/^  bottle do$/,/^  end$/d' Formula/ricochet.rb
-          fi
+          # This run rebuilds and re-uploads every bottle, so any existing block is already
+          # stale. Dropping it makes brew build from source until the merge lands, instead of
+          # failing on a checksum that no longer matches the release asset.
+          sed -i '/^  bottle do$/,/^  end$/d' Formula/ricochet.rb
+          # Deleting the block leaves both blank lines that framed it, and brew bottle --merge
+          # keeps the spare one when it writes the regenerated block back.
+          cat -s Formula/ricochet.rb > "${RUNNER_TEMP}/ricochet.rb"
+          mv "${RUNNER_TEMP}/ricochet.rb" Formula/ricochet.rb
           sed -i '/^[[:space:]]*tag: "[^"]*",$/d' Formula/ricochet.rb
 
           sed -i "s|url \"https://github.com/ricochet-rs/cli/archive/refs/tags/v[^\"]*\"|url \"${URL}\"|" Formula/ricochet.rb
           sed -i "s|^\([[:space:]]*\)sha256 \"[a-f0-9]\{64\}\"|\1sha256 \"${SHA256}\"|" Formula/ricochet.rb
           sed -i "s|revision: \"[a-f0-9]*\"|revision: \"${CORE_COMMIT}\"|" Formula/ricochet.rb
-          sed -i "s|root_url \"https://github.com/${{ github.repository }}/releases/download/v[^\"]*\"|root_url \"https://github.com/${{ github.repository }}/releases/download/v${VERSION}\"|" Formula/ricochet.rb
 
           if ! git diff --quiet Formula/ricochet.rb; then
             git add Formula/ricochet.rb
