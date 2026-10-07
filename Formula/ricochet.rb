@@ -6,12 +6,6 @@ class Ricochet < Formula
   license "AGPL-3.0-or-later"
   head "https://github.com/ricochet-rs/cli.git", branch: "main"
 
-  bottle do
-    root_url "https://github.com/ricochet-rs/homebrew-tap/releases/download/v1.2.0"
-    sha256 cellar: :any_skip_relocation, arm64_tahoe:   "20a1f6c02820150495e5f8474a4b61f4b41afcc7c7df01d3e7f0521cc0409a01"
-    sha256 cellar: :any_skip_relocation, arm64_sequoia: "0fa86efd382a854e3d84c950035997a3c7946f7f0bf4f74d663ade6be21d8271"
-  end
-
   # Private dependency - fetched separately with auth
   resource "ricochet-core" do
     url "https://github.com/ricochet-rs/ricochet.git",
