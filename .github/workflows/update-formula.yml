@@ -21,7 +21,7 @@ jobs:
           ssh-key: ${{ secrets.ACTIONS_DEPLOY_KEY }}
 
       - name: Set up Homebrew
-        uses: Homebrew/actions/setup-homebrew@master
+        uses: Homebrew/actions/setup-homebrew@main
 
       - name: Setup tap
         run: |
