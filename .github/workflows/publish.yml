@@ -140,10 +140,9 @@ jobs:
         env:
           HOMEBREW_NO_AUTO_UPDATE: "1"
         run: |
-          # The macOS 15 runner image links openssl@1.1 into bin/, which blocks linking openssl@3.
-          if brew list --formula openssl@1.1 >/dev/null 2>&1; then
-            brew unlink openssl@1.1
-          fi
+          # The macOS 15 runner image symlinks keg-only openssl@1.1 into the prefix by hand,
+          # so `brew unlink` leaves those links and they block linking openssl@3.
+          find "$(brew --prefix)"/{bin,include,lib} -maxdepth 1 -lname '*openssl@1.1*' -print -delete
           brew install --only-dependencies --build-from-source --verbose ricochet-rs/tap/ricochet
 
       - name: Build bottle
