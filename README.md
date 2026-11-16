@@ -13,3 +13,9 @@ Install formula:
 ```shell
 brew install ricochet
 ```
+
+Install the desktop app on an Apple Silicon Mac:
+
+```shell
+brew install --cask ricochet-app
+```
